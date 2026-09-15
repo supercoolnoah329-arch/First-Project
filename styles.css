@@ -25,5 +25,6 @@ body { margin: 0; background: #173b4b; color: var(--ink); font-family: var(--dis
 .crosshair { position: fixed; z-index: 3; top: 50%; left: 50%; width: 8px; height: 8px; border: 1px solid rgba(255,255,255,.65); border-radius: 50%; transform: translate(-50%, -50%); opacity: 0; }
 .touch-controls { position: fixed; z-index: 6; right: 21px; bottom: 20px; display: none; grid-template-columns: repeat(3, 40px); gap: 6px; }
 .touch-controls button { width: 40px; height: 40px; border: 1px solid rgba(255,255,255,.35); border-radius: 4px; background: rgba(9,31,43,.65); color: var(--ink); font: 17px var(--display); }
-.touch-controls .jump { grid-column: span 3; width: 100%; color: var(--gold); font: 10px var(--mono); }
+.touch-controls .jump, .touch-controls .attack { grid-column: span 3; width: 100%; color: var(--gold); font: 10px var(--mono); }
+.touch-controls .attack { color: var(--coral); }
 @media (max-width: 650px) { .hud { padding: 17px; gap: 6px; } .logo { position: absolute; top: 17px; left: 17px; } .hud-card { min-width: 88px; padding: 8px 10px; } .hud-card:first-of-type { margin-left: auto; } .message { padding: 30px 22px; } .touch-controls { display: grid; } }

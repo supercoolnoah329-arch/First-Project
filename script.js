@@ -41,12 +41,18 @@ const materials = {
 const platforms = [];
 const feathers = [];
 const enemies = [];
+const projectiles = [];
 const keys = {};
 let audioContext;
 let player;
 let goal;
+let boss;
+let arenaPlatform;
+let attackCooldown = 0;
 let active = false;
 let finished = false;
+let level = 1;
+let bossHealth = 3;
 let featherCount = 0;
 let best = Number(localStorage.getItem('skybound-3d-best') || 0);
 bestText.textContent = String(best).padStart(2, '0');
@@ -56,7 +62,7 @@ function addPlatform(x, y, z, width, depth, accent = false) {
   const top = new THREE.Mesh(new THREE.BoxGeometry(width, .8, depth), materials.grass); top.position.y = .4; top.receiveShadow = true; top.castShadow = true; group.add(top);
   const base = new THREE.Mesh(new THREE.CylinderGeometry(Math.max(width, depth) * .34, Math.max(width, depth) * .54, 3.5, 7), materials.dirt); base.position.y = -1.6; base.receiveShadow = true; group.add(base);
   if (accent) { const flower = new THREE.Mesh(new THREE.ConeGeometry(.35, 1.3, 6), materials.gold); flower.position.set(width * .24, 1.15, depth * -.2); flower.castShadow = true; group.add(flower); }
-  scene.add(group); platforms.push({ x, y: y + .8, z, width, depth });
+  scene.add(group); const platform = { x, y: y + .8, z, width, depth, group }; platforms.push(platform); return platform;
 }
 
 function addFeather(x, y, z) {
@@ -74,6 +80,32 @@ function addMushroom(x, y, z, patrol = 2) {
   enemy.userData.startX = x; enemy.userData.patrol = patrol; enemy.userData.baseY = y; enemy.userData.phase = Math.random() * Math.PI * 2; scene.add(enemy); enemies.push(enemy);
 }
 
+function shoot() {
+  if (!active || attackCooldown > 0) return;
+  const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(player.quaternion).normalize();
+  const projectile = new THREE.Mesh(new THREE.SphereGeometry(.18, 10, 8), materials.gold);
+  projectile.position.copy(player.position).add(new THREE.Vector3(0, .55, 0)).addScaledVector(direction, 1.1);
+  projectile.userData.velocity = direction.multiplyScalar(15); projectile.userData.life = 1.8;
+  projectile.castShadow = true; scene.add(projectile); projectiles.push(projectile); attackCooldown = .28;
+}
+
+function buildBoss() {
+  boss = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(1.05, 1.1, 8, 16), materials.mushroomBrown); body.position.y = 1; body.scale.z = 1.15; body.castShadow = true; boss.add(body);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(1.55, 20, 12, 0, Math.PI * 2, 0, Math.PI * .55), materials.mushroomBrown); cap.scale.set(1.15, .72, 1.05); cap.position.y = 2.05; cap.castShadow = true; boss.add(cap);
+  [-.65, .65].forEach((side) => { const spot = new THREE.Mesh(new THREE.SphereGeometry(.22, 10, 8), materials.mushroomLight); spot.position.set(side, 2.35, -.98); spot.scale.z = .3; boss.add(spot); });
+  [-.42, .42].forEach((side) => { const eye = new THREE.Mesh(new THREE.SphereGeometry(.13, 10, 8), materials.dark); eye.position.set(side, 1.35, -.98); boss.add(eye); });
+  boss.position.set(0, .8, -8); boss.userData.startX = 0; boss.userData.phase = 0; boss.userData.hitTimer = 0; boss.visible = false; scene.add(boss);
+}
+
+function buildArena() {
+  arenaPlatform = addPlatform(0, 0, -8, 24, 18, true);
+  const arenaWalls = new THREE.Group();
+  const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x557d84, roughness: .9 });
+  [[-12, -8, .6, 18], [12, -8, .6, 18], [0, -17, 24, .6], [0, 1, 24, .6]].forEach(([x, z, width, depth]) => { const wall = new THREE.Mesh(new THREE.BoxGeometry(width, 2.4, depth), wallMaterial); wall.position.set(x, 1.2, z); wall.castShadow = true; wall.receiveShadow = true; arenaWalls.add(wall); });
+  scene.add(arenaWalls); arenaPlatform.group.userData.arenaWalls = arenaWalls; arenaPlatform.group.visible = false; arenaWalls.visible = false;
+}
+
 function buildWorld() {
   addPlatform(0, 0, 0, 12, 10, true); addPlatform(-11, 2.7, -5, 6, 5); addPlatform(-19, 5.3, -11, 5, 5, true); addPlatform(-9, 7.8, -17, 6, 5); addPlatform(2, 10.3, -23, 7, 5, true); addPlatform(13, 12.8, -18, 5, 5); addPlatform(20, 15.3, -11, 8, 6, true);
   addFeather(-2, 2, -1); addFeather(-11, 5, -5); addFeather(-19, 7.6, -11); addFeather(-9, 10.1, -17); addFeather(2, 12.6, -23); addFeather(13, 15.1, -18); addFeather(20, 17.6, -11); addFeather(23, 19.8, -11);
@@ -83,6 +115,8 @@ function buildWorld() {
   const clouds = new THREE.Group();
   for (let i = 0; i < 24; i += 1) { const cloud = new THREE.Mesh(new THREE.SphereGeometry(1.2 + Math.random() * 1.6, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .18 })); cloud.position.set((Math.random() - .5) * 70, 5 + Math.random() * 18, -10 - Math.random() * 45); cloud.scale.y = .35; clouds.add(cloud); }
   scene.add(clouds);
+  buildBoss();
+  buildArena();
 }
 
 function buildPlayer() {
@@ -102,7 +136,10 @@ function buildPlayer() {
   player.position.set(0, 2.1, 1); scene.add(player);
 }
 
-function resetGame() { featherCount = 0; scoreText.textContent = '00 / 08'; finished = false; active = true; intro.classList.add('is-hidden'); complete.classList.add('is-hidden'); player.position.set(0, 2.1, 1); player.userData.velocityY = 0; player.userData.grounded = false; player.userData.jumpCount = 0; feathers.forEach((feather) => { feather.visible = true; }); }
+function setWorldVisibility(isArena) { platforms.forEach((platform) => { platform.group.visible = isArena ? platform === arenaPlatform : platform !== arenaPlatform; }); const arenaWalls = arenaPlatform.group.userData.arenaWalls; arenaWalls.visible = isArena; enemies.forEach((enemy) => { enemy.visible = !isArena; }); goal.visible = !isArena; }
+function clearProjectiles() { projectiles.forEach((projectile) => scene.remove(projectile)); projectiles.length = 0; }
+function resetGame() { level = 1; featherCount = 0; scoreText.textContent = '00 / 08'; finished = false; active = true; bossHealth = 3; boss.visible = false; clearProjectiles(); setWorldVisibility(false); intro.classList.add('is-hidden'); complete.classList.add('is-hidden'); player.position.set(0, 2.1, 1); player.userData.velocityY = 0; player.userData.grounded = false; player.userData.jumpCount = 0; feathers.forEach((feather) => { feather.visible = true; }); }
+function startLevelTwo() { level = 2; finished = false; active = true; bossHealth = 3; scoreText.textContent = 'BOSS 03 HP'; clearProjectiles(); complete.classList.add('is-hidden'); setWorldVisibility(true); boss.visible = true; boss.position.set(0, .8, -8); boss.userData.hitTimer = 0; player.position.set(0, 2.1, 1); player.userData.velocityY = 0; player.userData.grounded = false; player.userData.jumpCount = 0; feathers.forEach((feather) => { feather.visible = false; }); }
 function playJumpSound() {
   audioContext ||= new AudioContext();
   if (audioContext.state === 'suspended') audioContext.resume();
@@ -127,18 +164,42 @@ function jump() {
 }
 function collectFeathers() { feathers.forEach((feather) => { if (feather.visible && player.position.distanceTo(feather.position) < 1.15) { feather.visible = false; featherCount += 1; scoreText.textContent = `${String(featherCount).padStart(2, '0')} / 08`; } }); }
 function checkGoal() { if (featherCount === feathers.length && player.position.distanceTo(goal.position) < 2.1) win(); }
-function checkEnemies() { if (enemies.some((enemy) => player.position.distanceTo(enemy.position) < 1.15)) { player.position.set(0, 3, 1); player.userData.velocityY = 0; player.userData.jumpCount = 0; } }
-function win() { finished = true; active = false; best = Math.max(best, featherCount); localStorage.setItem('skybound-3d-best', best); bestText.textContent = String(best).padStart(2, '0'); completeCopy.textContent = `You gathered all ${feathers.length} feathers and reached the golden perch.`; complete.classList.remove('is-hidden'); }
+function checkEnemies() { if (enemies.some((enemy) => enemy.visible && player.position.distanceTo(enemy.position) < 1.15)) { player.position.set(0, 3, 1); player.userData.velocityY = 0; player.userData.jumpCount = 0; } }
+function checkProjectiles(delta) {
+  projectiles.forEach((projectile) => { projectile.position.addScaledVector(projectile.userData.velocity, delta); projectile.userData.life -= delta; });
+  projectiles.forEach((projectile) => {
+    if (projectile.userData.life <= 0) return;
+    const bossHit = boss.visible && projectile.position.distanceTo(boss.position) < 2.2;
+    if (bossHit && boss.userData.hitTimer <= 0) { bossHealth -= 1; boss.userData.hitTimer = .55; projectile.userData.life = 0; scoreText.textContent = `BOSS ${String(bossHealth).padStart(2, '0')} HP`; if (bossHealth <= 0) win(); return; }
+    enemies.forEach((enemy) => { if (enemy.visible && projectile.position.distanceTo(enemy.position) < 1) { enemy.visible = false; projectile.userData.life = 0; } });
+  });
+  for (let index = projectiles.length - 1; index >= 0; index -= 1) { if (projectiles[index].userData.life <= 0) { scene.remove(projectiles[index]); projectiles.splice(index, 1); } }
+}
+function checkBoss(previousY) {
+  if (level !== 2 || !boss.visible) return;
+  const distance = player.position.distanceTo(boss.position);
+  const fallingOntoBoss = player.userData.velocityY <= 0 && previousY - .7 >= boss.position.y + 2.35 && player.position.y - .7 <= boss.position.y + 2.6;
+  if (distance < 2.2 && fallingOntoBoss && boss.userData.hitTimer <= 0) { bossHealth -= 1; boss.userData.hitTimer = .55; player.userData.velocityY = 8.8; player.userData.jumpCount = 1; scoreText.textContent = `BOSS ${String(bossHealth).padStart(2, '0')} HP`; if (bossHealth <= 0) win(); }
+  else if (distance < 1.8) { player.position.set(0, 3, 1); player.userData.velocityY = 0; player.userData.jumpCount = 0; }
+}
+function win() { finished = true; active = false; boss.visible = false; best = Math.max(best, featherCount); localStorage.setItem('skybound-3d-best', best); bestText.textContent = String(best).padStart(2, '0'); completeCopy.textContent = level === 2 ? 'The summit guardian is defeated. You cleared both levels.' : `You gathered all ${feathers.length} feathers and reached the golden perch.`; complete.querySelector('#message-kicker').textContent = level === 2 ? 'GAME COMPLETE' : 'LEVEL CLEAR'; againButton.innerHTML = level === 2 ? 'Play again <span>↻</span>' : 'Next level <span>→</span>'; complete.classList.remove('is-hidden'); }
 
 function update(delta, time) {
   feathers.forEach((feather, index) => { if (feather.visible) { feather.rotation.y += delta * 2; feather.position.y = feather.userData.baseY + Math.sin(time * .003 + index) * .18; } });
   if (goal) { goal.rotation.z += delta * 1.5; goal.position.y = 20.1 + Math.sin(time * .003) * .15; }
   enemies.forEach((enemy) => { enemy.position.x = enemy.userData.startX + Math.sin(time * .0012 + enemy.userData.phase) * enemy.userData.patrol; enemy.position.y = enemy.userData.baseY + Math.abs(Math.sin(time * .004 + enemy.userData.phase)) * .08; enemy.rotation.y += delta * .8; });
+  if (boss.visible) { boss.position.x = Math.sin(time * .0014) * 3.3; boss.position.y = .8 + Math.abs(Math.sin(time * .003)) * .18; boss.rotation.y += delta * .5; boss.userData.hitTimer = Math.max(0, boss.userData.hitTimer - delta); const pulse = boss.userData.hitTimer > 0 ? 1.12 : 1; boss.scale.setScalar(pulse); }
+  attackCooldown = Math.max(0, attackCooldown - delta);
   if (!active) return;
   const direction = new THREE.Vector3((keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0), 0, (keys.ArrowDown || keys.KeyS ? 1 : 0) - (keys.ArrowUp || keys.KeyW ? 1 : 0));
   const isMoving = direction.lengthSq() > 0;
   if (isMoving) {
-    direction.normalize(); player.position.x += direction.x * 7 * delta; player.position.z += direction.z * 7 * delta; player.rotation.y = Math.atan2(direction.x, direction.z);
+    direction.normalize();
+    player.position.addScaledVector(direction, 7 * delta);
+    const targetRotation = Math.atan2(-direction.x, -direction.z);
+    let rotationDifference = targetRotation - player.rotation.y;
+    rotationDifference = Math.atan2(Math.sin(rotationDifference), Math.cos(rotationDifference));
+    player.rotation.y += rotationDifference * Math.min(1, delta * 12);
     player.userData.animation.walkTime += delta * 11;
   }
   const walkAmount = isMoving ? Math.sin(player.userData.animation.walkTime) * .65 : 0;
@@ -152,6 +213,7 @@ function update(delta, time) {
   const currentFeet = player.position.y - .7;
   const landingTolerance = Math.max(.18, Math.abs(player.userData.velocityY * delta) + .08);
   platforms.forEach((platform) => {
+    if ((level === 2 && platform !== arenaPlatform) || (level === 1 && platform === arenaPlatform)) return;
     const within = Math.abs(player.position.x - platform.x) < platform.width / 2 + .55 && Math.abs(player.position.z - platform.z) < platform.depth / 2 + .55;
     const crossingTop = previousFeet >= platform.y - landingTolerance && currentFeet <= platform.y + landingTolerance;
     if (within && player.userData.velocityY <= 0 && crossingTop) {
@@ -167,17 +229,19 @@ function update(delta, time) {
     player.userData.jumpCount = 0;
   }
   collectFeathers();
+  checkProjectiles(delta);
   checkEnemies();
+  checkBoss(previousY);
   checkGoal();
   const target = new THREE.Vector3(player.position.x, player.position.y + 4.2, player.position.z + 10); camera.position.lerp(target, 1 - Math.pow(.001, delta)); camera.lookAt(player.position.x, player.position.y + .3, player.position.z - 4);
 }
 
 function animate(time = 0) { requestAnimationFrame(animate); const delta = Math.min((time - (animate.last || time)) / 1000, .04); animate.last = time; update(delta, time); renderer.render(scene, camera); }
 
-window.addEventListener('keydown', (event) => { keys[event.code] = true; if (event.code === 'Space') { event.preventDefault(); jump(); } });
+window.addEventListener('keydown', (event) => { keys[event.code] = true; if (event.code === 'Space') { event.preventDefault(); jump(); } if (event.code === 'KeyF' || event.code === 'KeyE') shoot(); });
 window.addEventListener('keyup', (event) => { keys[event.code] = false; });
 window.addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
-startButton.addEventListener('click', resetGame); againButton.addEventListener('click', resetGame);
-document.querySelectorAll('.touch-controls button').forEach((button) => { button.addEventListener('pointerdown', () => { if (button.dataset.key === 'Space') jump(); else keys[button.dataset.key] = true; }); button.addEventListener('pointerup', () => { keys[button.dataset.key] = false; }); button.addEventListener('pointerleave', () => { keys[button.dataset.key] = false; }); });
+startButton.addEventListener('click', resetGame); againButton.addEventListener('click', () => { if (level === 1) startLevelTwo(); else resetGame(); });
+document.querySelectorAll('.touch-controls button').forEach((button) => { button.addEventListener('pointerdown', () => { if (button.dataset.key === 'Space') jump(); else if (button.dataset.key === 'Attack') shoot(); else keys[button.dataset.key] = true; }); button.addEventListener('pointerup', () => { keys[button.dataset.key] = false; }); button.addEventListener('pointerleave', () => { keys[button.dataset.key] = false; }); });
 
 buildWorld(); buildPlayer(); camera.position.set(0, 8, 13); camera.lookAt(0, 2, 0); animate();
