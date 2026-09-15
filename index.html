@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#173b4b">
+  <title>Skybound 3D</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="hud">
+    <a class="logo" href="index.html"><span>WING</span>BOUND <b>3D</b></a>
+    <div class="hud-card"><span>FEATHERS</span><strong id="score">00 / 08</strong></div>
+    <div class="hud-card"><span>BEST RUN</span><strong id="best">00</strong></div>
+  </div>
+  <div id="game-root"></div>
+  <div class="crosshair" aria-hidden="true"></div>
+  <div class="message" id="message"><span id="message-kicker">A TINY 3D ADVENTURE</span><h1>Reach the<br><em>sunlit summit.</em></h1><p>Explore the floating gardens, collect every feather, and find the golden perch.</p><button id="start-button" type="button">Start adventure <span>→</span></button><small>WASD / ARROWS TO MOVE &nbsp;·&nbsp; SPACE TO JUMP</small></div>
+  <div class="complete message is-hidden" id="complete"><span id="message-kicker">LEVEL CLEAR</span><h1>You found<br><em>the high place.</em></h1><p id="complete-copy">Every feather is yours. The sky is yours too.</p><button id="again-button" type="button">Play again <span>↻</span></button></div>
+  <div class="touch-controls" aria-label="Touch controls"><button data-key="ArrowLeft" type="button">←</button><button data-key="ArrowUp" type="button">↑</button><button data-key="ArrowDown" type="button">↓</button><button data-key="ArrowRight" type="button">→</button><button data-key="Space" type="button" class="jump">JUMP</button></div>
+  <script type="module" src="script.js"></script>
+</body>
+</html>
